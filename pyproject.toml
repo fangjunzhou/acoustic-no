@@ -4,8 +4,17 @@ version = "0.1.0"
 description = "Stanford CS 231N Acoustic NO"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy>=2.2.5",
+    "taichi>=1.7.3",
+    "tqdm>=4.67.1",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "jupyterlab>=4.4.2",
+]

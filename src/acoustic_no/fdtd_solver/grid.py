@@ -5,6 +5,7 @@ import taichi as ti
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @ti.data_oriented
 class Grid2D:
     # Staggered grid for pressure and velocity.
@@ -22,10 +23,7 @@ class Grid2D:
     # Time step size.
     dt: ti.f32
 
-    def __init__(self,
-                 size: Tuple[int, int],
-                 dx: ti.f32,
-                 c: ti.f32 = 340) -> None:
+    def __init__(self, size: Tuple[int, int], dx: ti.f32, c: ti.f32 = 340) -> None:
         self.size = size
         self.dx = dx
         self.c = c
@@ -45,6 +43,7 @@ def main():
     # Construct scene.
     grid = Grid2D((512, 512), 0.01, 340)
     logger.info(f"Scene grid shape: {grid.size}.")
+
 
 if __name__ == "__main__":
     main()

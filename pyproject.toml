@@ -5,7 +5,9 @@ description = "Stanford CS 231N Acoustic NO"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "matplotlib>=3.10.3",
     "numpy>=2.2.5",
+    "scipy>=1.15.3",
     "taichi>=1.7.3",
     "tqdm>=4.67.1",
 ]
@@ -18,3 +20,8 @@ build-backend = "hatchling.build"
 dev = [
     "jupyterlab>=4.4.2",
 ]
+
+[tool.pyright]
+reportInvalidTypeForm = false
+reportAttributeAccessIssue = false
+reportGeneralTypeIssues = false

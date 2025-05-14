@@ -160,7 +160,7 @@ def main():
 
     SIZE = (512, 512)
     grid = Grid2D(SIZE, 1 / 512, 340)
-    scene = Solver2D(grid)
+    solver = Solver2D(grid)
 
     # Test objects.
     key_frames = np.array([0, 1], dtype=np.float32)
@@ -169,7 +169,7 @@ def main():
     circle = Circle(key_frames, center, radius)
     # Test audio.
     circle.load_audio_file(audio_path)
-    scene.objects.append(circle)
+    solver.objects.append(circle)
 
     disp_buf = ti.field(ti.math.vec3, shape=SIZE)
 
@@ -196,8 +196,8 @@ def main():
     frame = 0
     while gui.running:
         clear_disp_buf()
-        scene.rasterize(frame * grid.dt)
-        scene.apply_velocity()
+        solver.rasterize(frame * grid.dt)
+        solver.apply_velocity()
         render_velocity()
         gui.set_image(disp_buf)
         gui.text(content=f"frame={frame}, t={frame * grid.dt}", pos=[0, 0])

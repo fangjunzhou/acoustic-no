@@ -23,11 +23,13 @@ class Grid2D:
     # Time step size.
     dt: ti.f32
 
-    def __init__(self, size: Tuple[int, int], dx: ti.f32, c: ti.f32 = 340) -> None:
+    def __init__(
+        self, size: Tuple[int, int], dx: ti.f32, dt: ti.f32, c: ti.f32 = 340
+    ) -> None:
         self.size = size
         self.dx = dx
         self.c = c
-        self.dt = dx / (ti.sqrt(2) * c)
+        self.dt = dt
 
         sx, sy = size
         self.alpha_grid = ti.field(ti.f32, shape=(sx, sy))
@@ -41,7 +43,7 @@ def main():
     # Initialize taichi.
     ti.init(arch=ti.gpu)
     # Construct scene.
-    grid = Grid2D((512, 512), 0.01, 340)
+    grid = Grid2D((512, 512), 0.01, 0.01, 340)
     logger.info(f"Scene grid shape: {grid.size}.")
 
 

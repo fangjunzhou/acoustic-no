@@ -40,6 +40,15 @@ def main():
         "-l", "--length", help="Simulation length.", type=float, default=1
     )
     parser.add_argument(
+        "-s", "--step-rate", help="Simulation step rate.", type=float, default=44100
+    )
+    parser.add_argument(
+        "-w", "--wave-speed", help="Simulation wave speed.", type=float, default=340
+    )
+    parser.add_argument(
+        "--checkpoint", help="Steps per checkpoint.", type=int, default=1024
+    )
+    parser.add_argument(
         "-o",
         "--output",
         help="Output directory.",
@@ -52,13 +61,20 @@ def main():
     cell_size: float = args.cell
     blend_dist: float = args.blend
     length: float = args.length
+    step_rate: float = args.step_rate
+    wave_speed: float = args.wave_speed
+    steps_per_checkpoint: int = args.checkpoint
     out_path: pathlib.Path = args.output
-
     # Create output directory if not exists.
     out_path.mkdir(parents=True, exist_ok=True)
 
     # Simulation setup.
-    grid = Grid2D(grid_size, cell_size)
+    step_size = 1 / step_rate
+    if step_size > cell_size / (np.sqrt(2) * wave_speed):
+        logger.warning(
+            f"Step size {step_size} is larger than the CFL condition {cell_size / (np.sqrt(2) * wave_speed)}."
+        )
+    grid = Grid2D(grid_size, cell_size, step_size, wave_speed)
     solver = Solver2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Scene setup.
@@ -135,14 +151,13 @@ def main():
     gui = ti.GUI("FDTD", res=grid.size)  # type: ignore
 
     # Run solver.
-    FRAME_PER_SAVE = 1024
     save_path = out_path / "frames"
     save_path.mkdir(parents=True, exist_ok=True)
-    occupancy_arr = np.zeros(
-        (FRAME_PER_SAVE, grid.size[0], grid.size[1]), dtype=np.uint8
+    alpha_arr = np.zeros(
+        (steps_per_checkpoint, grid.size[0], grid.size[1]), dtype=np.uint8
     )
     pressure_arr = np.zeros(
-        (FRAME_PER_SAVE, grid.size[0], grid.size[1]), dtype=np.float32
+        (steps_per_checkpoint, grid.size[0], grid.size[1]), dtype=np.float32
     )
 
     num_frames = int(length / grid.dt)
@@ -151,20 +166,23 @@ def main():
         # Draw pressure field.
         render_pressure()
 
+        # Save alpha and pressure.
+        alpha_arr[frame % steps_per_checkpoint] = grid.alpha_grid.to_numpy(
+            dtype=np.uint8
+        )
+        pressure_arr[frame % steps_per_checkpoint] = grid.p_grid.to_numpy(
+            dtype=np.float32
+        )
+
         # Save frames.
-        if frame % FRAME_PER_SAVE == 0 and frame > 0:
-            np.save(
-                save_path / f"occupancy_{frame // FRAME_PER_SAVE:04d}.npy",
-                occupancy_arr,
+        if frame % steps_per_checkpoint == steps_per_checkpoint - 1:
+            # Save occupancy and pressure.
+            np.savez(
+                save_path / f"frame_{frame // steps_per_checkpoint:04d}.npz",
+                alpha=alpha_arr,
+                pressure=pressure_arr,
             )
-            np.save(
-                save_path / f"pressure_{frame // FRAME_PER_SAVE:04d}.npy",
-                pressure_arr,
-            )
-            logger.info(f"Saved frames {frame // FRAME_PER_SAVE}.")
-        # Save occupancy and pressure.
-        occupancy_arr[frame % FRAME_PER_SAVE] = grid.alpha_grid.to_numpy(dtype=np.uint8)
-        pressure_arr[frame % FRAME_PER_SAVE] = grid.p_grid.to_numpy(dtype=np.float32)
+            logger.info(f"Saved frames {frame // steps_per_checkpoint}.")
 
 
 if __name__ == "__main__":

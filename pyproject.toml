@@ -6,9 +6,13 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.10.3",
+    "neuraloperator>=1.0.2",
     "numpy>=2.2.5",
     "scipy>=1.15.3",
     "taichi>=1.7.3",
+    "torch>=2.7.0",
+    "torchaudio>=2.7.0",
+    "torchvision>=0.22.0",
     "tqdm>=4.67.1",
 ]
 

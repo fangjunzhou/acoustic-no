@@ -6,4 +6,7 @@
 __pycache__/
 .ipynb_checkpoints/
 .venv/
+
+# Data
 notebooks/audio.wav
+resources/data

@@ -213,7 +213,7 @@ class Circle(Object):
                 pos = ti.math.vec2(i * scene.dx, j * scene.dx)
                 dist = ti.math.length(pos - c)
                 if dist < r + scene.dx * blend_dist:
-                    normal = (pos - c) / dist
+                    normal = (pos - c) / (dist + 0.001)
                     scene.v_grid[i, j] = v * normal
 
         c, r = self.get_center_radius(t)

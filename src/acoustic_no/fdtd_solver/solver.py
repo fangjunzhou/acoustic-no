@@ -64,7 +64,13 @@ class Solver2D:
             for i, j in self.grid.alpha_grid:
                 self.grid.alpha_grid[i, j] = 0
 
+        @ti.kernel
+        def clear_velocity():
+            for i, j in self.grid.v_grid:
+                self.grid.v_grid[i, j] = ti.math.vec2(0)
+
         clear_alpha()
+        clear_velocity()
         for obj in self.objects:
             obj.rasterize_alpha(self.grid, t, self.blend_dist)
             obj.rasterize(self.grid, t, self.blend_dist)
@@ -126,7 +132,7 @@ class Solver2D:
                 p = self.grid.p_grid[i, j]
                 dx = self.grid.vx_grid[i + 1, j] - self.grid.vx_grid[i, j]
                 dy = self.grid.vy_grid[i, j + 1] - self.grid.vy_grid[i, j]
-                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p * (
+                self.grid.p_grid[i, j] -= (c**2 * (dx + dy) * dt + sigma * p) * (
                     1 - alpha
                 )
 

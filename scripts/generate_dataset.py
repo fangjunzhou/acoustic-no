@@ -180,24 +180,24 @@ def main():
             dtype=np.float32
         ).reshape((grid.size[0], grid.size[1], 2))
 
-        # Save frames.
+        # Save checkpoints.
         if frame % steps_per_checkpoint == steps_per_checkpoint - 1:
             # Save occupancy and pressure.
             np.savez_compressed(
-                save_path / f"frame_{frame // steps_per_checkpoint:04d}.npz",
+                save_path / f"checkpoint_{frame // steps_per_checkpoint:04d}.npz",
                 alpha=alpha_arr,
                 pressure=pressure_arr,
                 velocity=velocity_arr,
             )
-            logger.info(f"Saved frames {frame // steps_per_checkpoint}.")
+            logger.info(f"Saved checkpoint {frame // steps_per_checkpoint}.")
     # Save unused frames.
     np.savez_compressed(
-        save_path / f"frame_{num_frames // steps_per_checkpoint:04d}.npz",
+        save_path / f"checkpoint_{num_frames // steps_per_checkpoint:04d}.npz",
         alpha=alpha_arr[: (num_frames % steps_per_checkpoint)],
         pressure=pressure_arr[: (num_frames % steps_per_checkpoint)],
         velocity=velocity_arr[: (num_frames % steps_per_checkpoint)],
     )
-    logger.info(f"Saved frames {num_frames // steps_per_checkpoint}.")
+    logger.info(f"Saved checkpoint {num_frames // steps_per_checkpoint}.")
 
 
 if __name__ == "__main__":

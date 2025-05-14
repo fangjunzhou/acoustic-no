@@ -151,13 +151,16 @@ def main():
     gui = ti.GUI("FDTD", res=grid.size)  # type: ignore
 
     # Run solver.
-    save_path = out_path / "frames"
+    save_path = out_path / "checkpoints"
     save_path.mkdir(parents=True, exist_ok=True)
     alpha_arr = np.zeros(
-        (steps_per_checkpoint, grid.size[0], grid.size[1]), dtype=np.uint8
+        (steps_per_checkpoint, grid.size[0], grid.size[1]), dtype=np.float32
     )
     pressure_arr = np.zeros(
         (steps_per_checkpoint, grid.size[0], grid.size[1]), dtype=np.float32
+    )
+    velocity_arr = np.zeros(
+        (steps_per_checkpoint, grid.size[0], grid.size[1], 2), dtype=np.float32
     )
 
     num_frames = int(length / grid.dt)
@@ -168,21 +171,33 @@ def main():
 
         # Save alpha and pressure.
         alpha_arr[frame % steps_per_checkpoint] = grid.alpha_grid.to_numpy(
-            dtype=np.uint8
+            dtype=np.float32
         )
         pressure_arr[frame % steps_per_checkpoint] = grid.p_grid.to_numpy(
             dtype=np.float32
         )
+        velocity_arr[frame % steps_per_checkpoint] = grid.v_grid.to_numpy(
+            dtype=np.float32
+        ).reshape((grid.size[0], grid.size[1], 2))
 
         # Save frames.
         if frame % steps_per_checkpoint == steps_per_checkpoint - 1:
             # Save occupancy and pressure.
-            np.savez(
+            np.savez_compressed(
                 save_path / f"frame_{frame // steps_per_checkpoint:04d}.npz",
                 alpha=alpha_arr,
                 pressure=pressure_arr,
+                velocity=velocity_arr,
             )
             logger.info(f"Saved frames {frame // steps_per_checkpoint}.")
+    # Save unused frames.
+    np.savez_compressed(
+        save_path / f"frame_{num_frames // steps_per_checkpoint:04d}.npz",
+        alpha=alpha_arr[: (num_frames % steps_per_checkpoint)],
+        pressure=pressure_arr[: (num_frames % steps_per_checkpoint)],
+        velocity=velocity_arr[: (num_frames % steps_per_checkpoint)],
+    )
+    logger.info(f"Saved frames {num_frames // steps_per_checkpoint}.")
 
 
 if __name__ == "__main__":

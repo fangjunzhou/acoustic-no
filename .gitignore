@@ -9,4 +9,4 @@ __pycache__/
 
 # Data
 notebooks/audio.wav
-resources/data
+resources/dataset

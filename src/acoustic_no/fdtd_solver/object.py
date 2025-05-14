@@ -154,7 +154,9 @@ class Circle(Object):
             trim_normal_v = self.normal_v[:-trim]
         avg = trim_normal_v.reshape((-1, avg_sample))
         avg = np.mean(avg, axis=-1).flatten()
-        low_res_idx = np.arange(0, avg.size - 1, int(avg.size / drift_correction))
+        low_res_idx = np.arange(
+            0, avg.size - 1, max(int(avg.size / drift_correction), 1)
+        )
         low_res = avg[low_res_idx]
         offset = np.interp(
             np.linspace(0, low_res.size, self.normal_v.size),

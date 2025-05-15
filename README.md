@@ -3,12 +3,12 @@
 To setup the repo:
 
 We want to install package dependencies: 
-pip install uv
-uv sync
+pip install uv \\
+uv sync \\
 source .venv/bin/activate
 
 To generate the data:
-python scripts/generate_dataset.py --help
+python scripts/generate_dataset.py --help \\
 
 You should see something like this:
 [Taichi] version 1.7.3, llvm 15.0.7, commit 5ec301be, osx, python 3.12.2

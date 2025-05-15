@@ -10,3 +10,5 @@ __pycache__/
 # Data
 notebooks/audio.wav
 resources/dataset
+notebooks/pred_pressure_field.gif
+notebooks/pressure_field.gif

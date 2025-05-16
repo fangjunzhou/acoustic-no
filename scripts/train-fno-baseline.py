@@ -26,7 +26,7 @@ print(f"Using device: {device}")
 
 # Load the dataset
 dataset = AcousticDataset(
-    data_dir=pathlib.Path("resources/dataset"),
+    data_dir=pathlib.Path("resources/dataset/training"),
     depth=DEPTH,
 )
 print(f"Dataset size: {len(dataset)}")

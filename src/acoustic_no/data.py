@@ -8,37 +8,53 @@ import torch
 class AcousticDataset(Dataset):
     def __init__(self, data_dir: pathlib.Path, depth: int = 8):
         # Initialize the dataset with the directory containing the checkpoints.
+        self.logger = logging.getLogger(__name__)
         self.data_dir = data_dir
         self.depth = depth
-        self.checkpoints = sorted(data_dir.glob("*.npz"))
-        self.num_checkpoints = len(self.checkpoints)
-        self.logger = logging.getLogger(__name__)
-        self.logger.info(f"Found {self.num_checkpoints} checkpoints in {data_dir}.")
-        if self.num_checkpoints == 0:
-            raise ValueError(f"No checkpoints found in {data_dir}.")
-        # Concatenate the checkpoints into a single array.
-        self.p_grid = []
-        self.v_grid = []
-        self.alpha_grid = []
-        for checkpoint in self.checkpoints:
-            data = np.load(checkpoint)
-            self.p_grid.append(data["pressure"])
-            self.v_grid.append(data["velocity"])
-            self.alpha_grid.append(data["alpha"])
-        self.p_grid = np.concatenate(self.p_grid, axis=0)
-        self.v_grid = np.concatenate(self.v_grid, axis=0)
-        self.alpha_grid = np.concatenate(self.alpha_grid, axis=0)
-        self.length = len(self.p_grid)
+        self.scenes = []
+        # Get all scenes in the directory.
+        for scene in data_dir.iterdir():
+            if scene.is_dir():
+                # Read all checkpoints in the scene directory.
+                checkpoint_dir = scene / "checkpoints"
+                checkpoints = sorted(checkpoint_dir.glob("*.npz"))
+                self.logger.info(
+                    f"Found {len(checkpoints)} checkpoints in {checkpoint_dir}."
+                )
+                p_grid = []
+                v_grid = []
+                a_grid = []
+                # Load the checkpoints.
+                for checkpoint in checkpoints:
+                    data = np.load(checkpoint)
+                    p_grid.append(data["pressure"])
+                    v_grid.append(data["velocity"])
+                    a_grid.append(data["alpha"])
+                p_grid = np.concatenate(p_grid, axis=0)
+                v_grid = np.concatenate(v_grid, axis=0)
+                a_grid = np.concatenate(a_grid, axis=0)
+                length = len(p_grid)
+                # Append the scene and its checkpoints to the list.
+                self.scenes.append((length, p_grid, v_grid, a_grid))
+        # Calculate the total length of the dataset.
+        self.length = sum(length - depth + 1 for length, _, _, _ in self.scenes)
 
     def __len__(self):
         # Return the number of instances in the dataset.
-        return self.length - self.depth
+        return self.length
 
     def __getitem__(self, idx):
+        # Get the scene index and the offset within the scene.
+        scene_idx = 0
+        while idx >= self.scenes[scene_idx][0] - self.depth + 1:
+            idx -= self.scenes[scene_idx][0] - self.depth + 1
+            scene_idx += 1
+        # Get the scene data.
+        length, p_grid, v_grid, a_grid = self.scenes[scene_idx]
         # Get the pressure, velocity, and alpha grids for the current instance.
-        p = self.p_grid[idx : idx + self.depth]
-        v = self.v_grid[idx : idx + self.depth]
-        a = self.alpha_grid[idx : idx + self.depth]
+        p = p_grid[idx : idx + self.depth]
+        v = v_grid[idx : idx + self.depth]
+        a = a_grid[idx : idx + self.depth]
         # Convert to PyTorch tensors.
         p = torch.tensor(p, dtype=torch.float32)
         v = torch.tensor(v, dtype=torch.float32)

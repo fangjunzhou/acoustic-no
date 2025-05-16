@@ -176,8 +176,6 @@ def main():
             for i, j in disp_buf:
                 disp_buf[i, j] = ti.math.vec3(grid.p_grid[i, j])
 
-        gui = ti.GUI("FDTD", res=grid.size)  # type: ignore
-
         # Run solver.
         save_path = scene_path / "checkpoints"
         save_path.mkdir(parents=True, exist_ok=True)

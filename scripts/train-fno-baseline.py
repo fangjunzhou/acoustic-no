@@ -89,7 +89,7 @@ eval_losses = {"h1": h1loss, "l2": l2loss}
 # Finally pass all of these to the Trainer
 trainer = IncrementalFNOTrainer(
     model=model,
-    n_epochs=8,
+    n_epochs=32,
     data_processor=data_transform,
     device=device,
     verbose=True,

@@ -109,15 +109,22 @@ class ShuffledAcousticDataset(Dataset):
             # Load the chunk data.
             chunk_file = pathlib.Path(f".temp/chunk_{chunk_idx}.npz")
             data = np.load(chunk_file)
+            p_grid = data["pressure"]
+            v_grid = data["velocity"]
+            a_grid = data["alpha"]
             self.cache_chunk_idx = chunk_idx
-            self.cache_chunk_data = data
+            self.cache_chunk_data = (
+                p_grid,
+                v_grid,
+                a_grid,
+            )
         else:
             # Use the cached chunk data.
-            data = self.cache_chunk_data
-        assert data is not None, "Chunk data should not be None."
-        p_grid = data["pressure"]
-        v_grid = data["velocity"]
-        a_grid = data["alpha"]
+            p_grid, v_grid, a_grid = self.cache_chunk_data
+        # Ensure the data is not None.
+        assert p_grid is not None, "Pressure grid should not be None."
+        assert v_grid is not None, "Velocity grid should not be None."
+        assert a_grid is not None, "Alpha grid should not be None."
         # Get the pressure, velocity, and alpha grids for the current instance.
         p = p_grid[idx_in_chunk]
         v = v_grid[idx_in_chunk]

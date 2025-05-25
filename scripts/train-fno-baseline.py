@@ -10,12 +10,12 @@ from neuralop.training.incremental import IncrementalFNOTrainer
 from neuralop.data.transforms.data_processors import IncrementalDataProcessor
 from tqdm import tqdm
 
-from acoustic_no.data import AcousticDataset
+from acoustic_no.data import ShuffledAcousticDataset
 
 # Prediction depth.
 DEPTH = 64
 # Number of training and validation samples.
-N_TRAIN, N_VAL = 1024, 16
+FRACTION_TRAIN = 0.8
 
 # Use the GPU if available
 if torch.cuda.is_available():
@@ -25,21 +25,22 @@ else:
 print(f"Using device: {device}")
 
 # Load the dataset
-dataset = AcousticDataset(
+dataset = ShuffledAcousticDataset(
     data_dir=pathlib.Path("resources/dataset/training"),
+    num_chunks=16,
     depth=DEPTH,
 )
 print(f"Dataset size: {len(dataset)}")
 
 # Split the dataset into training and validation sets
-train_size = int(0.8 * len(dataset))
-val_size = len(dataset) - train_size
-train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-# Use a random subset of the dataset for training
-idx_train = torch.randperm(len(train_dataset))[:N_TRAIN]
-train_dataset = Subset(train_dataset, idx_train)
-idx_val = torch.randperm(len(val_dataset))[:N_VAL]
-val_dataset = Subset(val_dataset, idx_val)
+train_dataset = Subset(
+    dataset,
+    range(int(FRACTION_TRAIN * len(dataset))),
+)
+val_dataset = Subset(
+    dataset,
+    range(int(FRACTION_TRAIN * len(dataset)), len(dataset)),
+)
 # Create a data loader
 train_loader = torch.utils.data.DataLoader(
     train_dataset,
@@ -89,7 +90,7 @@ eval_losses = {"h1": h1loss, "l2": l2loss}
 # Finally pass all of these to the Trainer
 trainer = IncrementalFNOTrainer(
     model=model,
-    n_epochs=8,
+    n_epochs=32,
     data_processor=data_transform,
     device=device,
     verbose=True,

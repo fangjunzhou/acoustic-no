@@ -5,7 +5,7 @@ import logging
 import torch
 
 
-SAMPLE_PER_SCENE = 128
+SAMPLE_PER_SCENE = 16
 
 
 class ShuffledAcousticDataset(Dataset):
@@ -78,9 +78,9 @@ class ShuffledAcousticDataset(Dataset):
             if not enough_samples:
                 break
             # Concatenate all chunks for the current chunk.
-            chunk_p_grid = np.concatenate(chunk_p_grid, axis=0)
-            chunk_v_grid = np.concatenate(chunk_v_grid, axis=0)
-            chunk_a_grid = np.concatenate(chunk_a_grid, axis=0)
+            chunk_p_grid = np.array(chunk_p_grid)
+            chunk_v_grid = np.array(chunk_v_grid)
+            chunk_a_grid = np.array(chunk_a_grid)
             # Shuffle the chunk data.
             indices = np.random.permutation(len(chunk_p_grid))
             chunk_p_grid = chunk_p_grid[indices]

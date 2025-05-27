@@ -10,12 +10,26 @@ from neuralop.training.incremental import IncrementalFNOTrainer
 from neuralop.data.transforms.data_processors import IncrementalDataProcessor
 from tqdm import tqdm
 
-from acoustic_no.data import ShuffledAcousticDataset
+from acoustic_no.data import ShuffledAcousticDataset, preprocess_acoustic_dataset
+import argparse
+import os
 
-# Prediction depth.
-DEPTH = 64
 # Number of training and validation samples.
 FRACTION_TRAIN = 0.8
+
+# Parse arguments
+parser = argparse.ArgumentParser(description="Train an FNO baseline model")
+parser.add_argument("--data-dir", type=pathlib.Path, default=pathlib.Path("resources/dataset/training"),
+                   help="Directory containing the raw dataset")
+parser.add_argument("--processed-dir", type=pathlib.Path, default=pathlib.Path("resources/dataset/processed"),
+                   help="Directory to save/load the processed dataset")
+parser.add_argument("--preprocess", action="store_true", 
+                   help="Preprocess the dataset before training")
+parser.add_argument("--num-chunks", type=int, default=16,
+                   help="Number of chunks to use for preprocessing")
+parser.add_argument("--depth", type=int, default=8,
+                     help="Depth of the sequence for each sample")
+args = parser.parse_args()
 
 # Use the GPU if available
 if torch.cuda.is_available():
@@ -24,13 +38,25 @@ else:
     device = torch.device("cpu")
 print(f"Using device: {device}")
 
+# Preprocess data if requested
+if args.preprocess:
+    print(f"Preprocessing dataset from {args.data_dir} to {args.processed_dir}...")
+    preprocess_acoustic_dataset(
+        data_dir=args.data_dir,
+        output_dir=args.processed_dir,
+        num_chunks=args.num_chunks,
+        depth=args.depth
+    )
+
 # Load the dataset
 dataset = ShuffledAcousticDataset(
-    data_dir=pathlib.Path("resources/dataset/training"),
-    num_chunks=16,
-    depth=DEPTH,
+    dataset_dir=args.processed_dir,
 )
 print(f"Dataset size: {len(dataset)}")
+
+depth = dataset.depth
+if depth != args.depth:
+    raise ValueError(f"Expected dataset depth {args.depth}, but got {depth}.")
 
 # Split the dataset into training and validation sets
 train_dataset = Subset(
@@ -45,7 +71,7 @@ val_dataset = Subset(
 train_loader = torch.utils.data.DataLoader(
     train_dataset,
     batch_size=16,
-    shuffle=True,
+    shuffle=False,
     num_workers=0,
 )
 val_loader = {
@@ -59,8 +85,8 @@ val_loader = {
 
 model = FNO(
     n_modes=(16, 16),
-    in_channels=DEPTH * 3 + 1,
-    out_channels=DEPTH,
+    in_channels=args.depth * 3 + 1,
+    out_channels=args.depth,
     hidden_channels=64,
     projection_channel_ratio=2,
 )

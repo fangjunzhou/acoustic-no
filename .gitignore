@@ -14,3 +14,4 @@ resources/small_dataset
 notebooks/pred_pressure_field.gif
 notebooks/pressure_field.gif
 ckpt
+.temp

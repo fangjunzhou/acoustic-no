@@ -70,16 +70,16 @@ val_dataset = Subset(
 # Create a data loader
 train_loader = torch.utils.data.DataLoader(
     train_dataset,
-    batch_size=16,
+    batch_size=64,
     shuffle=False,
-    num_workers=0,
+    num_workers=10,
 )
 val_loader = {
     "64x64": torch.utils.data.DataLoader(
         val_dataset,
-        batch_size=16,
+        batch_size=64,
         shuffle=False,
-        num_workers=0,
+        num_workers=10,
     )
 }
 
@@ -87,7 +87,8 @@ model = FNO(
     n_modes=(16, 16),
     in_channels=args.depth * 3 + 1,
     out_channels=args.depth,
-    hidden_channels=64,
+    n_layers=8,
+    hidden_channels=128,
     projection_channel_ratio=2,
 )
 model.to(device)

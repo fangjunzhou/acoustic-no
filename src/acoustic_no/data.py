@@ -5,16 +5,110 @@ import logging
 import torch
 from tqdm import tqdm
 import json
+import multiprocessing as mp
+from functools import partial
 
 
-SAMPLE_PER_SCENE = 128
+def process_chunk(chunk, data_dir, output_dir, samples_per_scene, depth, logger):
+    """
+    Process a single data chunk.
+    
+    Args:
+        chunk: Chunk index to process
+        data_dir: Directory containing scene data
+        output_dir: Directory to save preprocessed data
+        depth: Depth of the sequence for each sample
+        logger: Logger instance
+        
+    Returns:
+        Tuple of (success, num_samples) where success is a boolean indicating if enough samples 
+        were found and num_samples is the number of samples in the chunk
+    """
+    enough_samples = True
+    np.random.seed(0)  # Use consistent seed for reproducibility
+    # All pressure, velocity, and alpha grids will be stored in these lists
+    chunk_p_grid = []
+    chunk_v_grid = []
+    chunk_a_grid = []
+    
+    # Get all scenes in the directory
+    for scene in data_dir.iterdir():
+        if scene.is_dir():
+            # Read all checkpoints in the scene directory
+            checkpoint_dir = scene / "checkpoints"
+            checkpoints = sorted(checkpoint_dir.glob("*.npz"))
+            
+            p_grid = []
+            v_grid = []
+            a_grid = []
+            
+            # Load the checkpoints
+            for checkpoint in checkpoints:
+                data = np.load(checkpoint)
+                p_grid.append(data["pressure"])
+                v_grid.append(data["velocity"])
+                a_grid.append(data["alpha"])
+            
+            p_grid = np.concatenate(p_grid, axis=0)
+            v_grid = np.concatenate(v_grid, axis=0)
+            a_grid = np.concatenate(a_grid, axis=0)
+            length = len(p_grid)
+            
+            # Shuffle the data
+            indices = np.random.permutation(length - depth + 1)
+            # Sample a fixed number of samples from the shuffled data
+            indices = indices[
+                chunk * samples_per_scene : (chunk + 1) * samples_per_scene
+            ]
+            
+            # Ensure we have enough samples
+            if len(indices) < samples_per_scene:
+                enough_samples = False
+                break
+            
+            for idx in indices:
+                # Get the pressure, velocity, and alpha grids for the current instance
+                p_grid_chunk = p_grid[idx : idx + depth]
+                v_grid_chunk = v_grid[idx : idx + depth]
+                a_grid_chunk = a_grid[idx : idx + depth]
+                # Append the chunk
+                chunk_p_grid.append(p_grid_chunk)
+                chunk_v_grid.append(v_grid_chunk)
+                chunk_a_grid.append(a_grid_chunk)
+    
+    if not enough_samples:
+        return (False, 0)
+        
+    # Concatenate all chunks for the current chunk
+    chunk_p_grid = np.array(chunk_p_grid)
+    chunk_v_grid = np.array(chunk_v_grid)
+    chunk_a_grid = np.array(chunk_a_grid)
+    
+    # Shuffle the chunk data
+    indices = np.random.permutation(len(chunk_p_grid))
+    chunk_p_grid = chunk_p_grid[indices]
+    chunk_v_grid = chunk_v_grid[indices]
+    chunk_a_grid = chunk_a_grid[indices]
+    
+    # Save the chunk to a file in output directory
+    chunk_file = output_dir / f"chunk_{chunk}.npz"
+    np.savez(
+        chunk_file,
+        pressure=chunk_p_grid,
+        velocity=chunk_v_grid,
+        alpha=chunk_a_grid,
+    )
+    
+    return (True, len(chunk_p_grid))
 
 
 def preprocess_acoustic_dataset(
     data_dir: pathlib.Path,
     output_dir: pathlib.Path,
     num_chunks: int,
+    samples_per_scene: int = 64,
     depth: int = 8,
+    num_workers: int = 8,
 ) -> None:
     """
     Preprocess acoustic dataset by loading checkpoints, sampling, and shuffling data.
@@ -25,6 +119,7 @@ def preprocess_acoustic_dataset(
         output_dir: Directory to save preprocessed data
         num_chunks: Number of chunks to generate
         depth: Depth of the sequence for each sample
+        num_workers: Number of worker processes to use (defaults to CPU count)
     """
     logger = logging.getLogger(__name__)
     
@@ -35,6 +130,12 @@ def preprocess_acoustic_dataset(
     num_scenes = len([scene for scene in data_dir.iterdir() if scene.is_dir()])
     logger.info(f"Found {num_scenes} scenes in {data_dir}")
     
+    # Determine number of workers (default to CPU count if not specified)
+    if num_workers is None:
+        num_workers = mp.cpu_count()
+    num_workers = min(num_workers, num_chunks)  # Don't use more workers than chunks
+    logger.info(f"Using {num_workers} worker processes")
+    
     # Dataset metadata
     metadata = {
         "depth": depth,
@@ -43,86 +144,29 @@ def preprocess_acoustic_dataset(
         "total_samples": 0
     }
     
-    for chunk in tqdm(range(num_chunks), desc="Processing chunks"):
-        enough_samples = True
-        np.random.seed(0)
-        # All pressure, velocity, and alpha grids will be stored in these lists
-        chunk_p_grid = []
-        chunk_v_grid = []
-        chunk_a_grid = []
-        
-        # Get all scenes in the directory
-        for scene in data_dir.iterdir():
-            if scene.is_dir():
-                # Read all checkpoints in the scene directory
-                checkpoint_dir = scene / "checkpoints"
-                checkpoints = sorted(checkpoint_dir.glob("*.npz"))
-                logger.info(f"Found {len(checkpoints)} checkpoints in {checkpoint_dir}.")
-                
-                p_grid = []
-                v_grid = []
-                a_grid = []
-                
-                # Load the checkpoints
-                for checkpoint in checkpoints:
-                    data = np.load(checkpoint)
-                    p_grid.append(data["pressure"])
-                    v_grid.append(data["velocity"])
-                    a_grid.append(data["alpha"])
-                
-                p_grid = np.concatenate(p_grid, axis=0)
-                v_grid = np.concatenate(v_grid, axis=0)
-                a_grid = np.concatenate(a_grid, axis=0)
-                length = len(p_grid)
-                
-                # Shuffle the data
-                indices = np.random.permutation(length - depth + 1)
-                # Sample a fixed number of samples from the shuffled data
-                indices = indices[
-                    chunk * SAMPLE_PER_SCENE : (chunk + 1) * SAMPLE_PER_SCENE
-                ]
-                
-                # Ensure we have enough samples
-                if len(indices) < SAMPLE_PER_SCENE:
-                    enough_samples = False
-                    break
-                
-                for idx in indices:
-                    # Get the pressure, velocity, and alpha grids for the current instance
-                    p_grid_chunk = p_grid[idx : idx + depth]
-                    v_grid_chunk = v_grid[idx : idx + depth]
-                    a_grid_chunk = a_grid[idx : idx + depth]
-                    # Append the chunk
-                    chunk_p_grid.append(p_grid_chunk)
-                    chunk_v_grid.append(v_grid_chunk)
-                    chunk_a_grid.append(a_grid_chunk)
-        
-        if not enough_samples:
-            break
-            
-        # Concatenate all chunks for the current chunk
-        chunk_p_grid = np.array(chunk_p_grid)
-        chunk_v_grid = np.array(chunk_v_grid)
-        chunk_a_grid = np.array(chunk_a_grid)
-        
-        # Shuffle the chunk data
-        indices = np.random.permutation(len(chunk_p_grid))
-        chunk_p_grid = chunk_p_grid[indices]
-        chunk_v_grid = chunk_v_grid[indices]
-        chunk_a_grid = chunk_a_grid[indices]
-        
-        # Save the chunk to a file in output directory
-        chunk_file = output_dir / f"chunk_{chunk}.npz"
-        np.savez(
-            chunk_file,
-            pressure=chunk_p_grid,
-            velocity=chunk_v_grid,
-            alpha=chunk_a_grid,
-        )
-        
-        # Update metadata
-        metadata["num_chunks"] += 1
-        metadata["total_samples"] += len(chunk_p_grid)
+    # Create a partial function with fixed arguments
+    process_chunk_partial = partial(
+        process_chunk, 
+        data_dir=data_dir, 
+        output_dir=output_dir, 
+        samples_per_scene=samples_per_scene,
+        depth=depth,
+        logger=logger
+    )
+    
+    # Process chunks in parallel using multiprocessing
+    with mp.Pool(processes=num_workers) as pool:
+        results = list(tqdm(
+            pool.imap(process_chunk_partial, range(num_chunks)),
+            total=num_chunks,
+            desc="Processing chunks"
+        ))
+    
+    # Update metadata based on results
+    for success, num_samples in results:
+        if success:
+            metadata["num_chunks"] += 1
+            metadata["total_samples"] += num_samples
     
     # Save metadata
     with open(output_dir / "metadata.json", "w") as f:
@@ -136,6 +180,7 @@ class ShuffledAcousticDataset(Dataset):
     def __init__(
         self,
         dataset_dir: pathlib.Path,
+        samples_per_scene: int = 64,
     ) -> None:
         """
         Load a preprocessed acoustic dataset from the specified directory.
@@ -147,6 +192,7 @@ class ShuffledAcousticDataset(Dataset):
         self.dataset_dir = dataset_dir
         self.cache_chunk_idx = -1
         self.cache_chunk_data = None
+        self.samples_per_scene = samples_per_scene
         
         # Load metadata
         try:
@@ -168,8 +214,8 @@ class ShuffledAcousticDataset(Dataset):
 
     def __getitem__(self, idx):
         # Calculate the chunk index and the index within the chunk.
-        chunk_idx = idx // (SAMPLE_PER_SCENE * self.num_scenes)
-        idx_in_chunk = idx % (SAMPLE_PER_SCENE * self.num_scenes)
+        chunk_idx = idx // (self.samples_per_scene * self.num_scenes)
+        idx_in_chunk = idx % (self.samples_per_scene * self.num_scenes)
         # If the chunk is not cached, load it.
         if self.cache_chunk_idx != chunk_idx:
             # Load the chunk data.

@@ -139,4 +139,5 @@ trainer.train(
     training_loss=train_loss,
     eval_losses=eval_losses,
     save_best="64x64_h1",
+    save_dir=pathlib.Path("resources/models/fno_baseline")
 )

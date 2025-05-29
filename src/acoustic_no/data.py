@@ -270,7 +270,7 @@ class AcousticDataset(Dataset):
         self.logger = logging.getLogger(__name__)
         self.data_dir = data_dir
         self.depth = depth
-        self.samples = []                # List of (file_path, frame_idx)
+        self.scenes = []
         # Get all scenes in the directory.
         for scene in data_dir.iterdir():
             if scene.is_dir():
@@ -280,27 +280,40 @@ class AcousticDataset(Dataset):
                 self.logger.info(
                     f"Found {len(checkpoints)} checkpoints in {checkpoint_dir}."
                 )
+                p_grid = []
+                v_grid = []
+                a_grid = []
                 # Load the checkpoints.
                 for checkpoint in checkpoints:
-                    # Calculate the number of frames in the checkpoint.
-                    with np.load(checkpoint) as data:
-                        num_frames = data["pressure"].shape[0]
-                    # Append frame indices to the samples list.
-                    for i in range(num_frames - depth + 1):
-                        self.samples.append((checkpoint, i))
+                    data = np.load(checkpoint)
+                    p_grid.append(data["pressure"])
+                    v_grid.append(data["velocity"])
+                    a_grid.append(data["alpha"])
+                p_grid = np.concatenate(p_grid, axis=0)
+                v_grid = np.concatenate(v_grid, axis=0)
+                a_grid = np.concatenate(a_grid, axis=0)
+                length = len(p_grid)
+                # Append the scene and its checkpoints to the list.
+                self.scenes.append((length, p_grid, v_grid, a_grid))
+        # Calculate the total length of the dataset.
+        self.length = sum(length - depth + 1 for length, _, _, _ in self.scenes)
 
     def __len__(self):
         # Return the number of instances in the dataset.
-        return len(self.samples)
+        return self.length
 
     def __getitem__(self, idx):
-        # Get the file path and frame index of the sample.
-        file_path, frame_idx = self.samples[idx]
-         # Get the pressure, velocity, and alpha grids for the current instance.
-        with np.load(file_path) as data:
-            p = data["pressure"][frame_idx : frame_idx + self.depth]
-            v = data["velocity"][frame_idx : frame_idx + self.depth]
-            a = data["alpha"][frame_idx : frame_idx + self.depth]
+        # Get the scene index and the offset within the scene.
+        scene_idx = 0
+        while idx >= self.scenes[scene_idx][0] - self.depth + 1:
+            idx -= self.scenes[scene_idx][0] - self.depth + 1
+            scene_idx += 1
+        # Get the scene data.
+        length, p_grid, v_grid, a_grid = self.scenes[scene_idx]
+        # Get the pressure, velocity, and alpha grids for the current instance.
+        p = p_grid[idx : idx + self.depth]
+        v = v_grid[idx : idx + self.depth]
+        a = a_grid[idx : idx + self.depth]
         # Convert to PyTorch tensors.
         p = torch.tensor(p, dtype=torch.float32)
         v = torch.tensor(v, dtype=torch.float32)

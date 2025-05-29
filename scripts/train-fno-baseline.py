@@ -6,17 +6,17 @@ Training script for Fourier Neural Operator (FNO) model on acoustic wave propaga
 
 import pathlib
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import Subset, random_split
 from neuralop.models import FNO
 from neuralop.training import AdamW
 from neuralop import LpLoss, H1Loss
 from neuralop.training.incremental import IncrementalFNOTrainer
 from neuralop.data.transforms.data_processors import IncrementalDataProcessor
-from tqdm import tqdm
 import logging
 import argparse
+import numpy as np
 
-from acoustic_no.data import ShuffledAcousticDataset, preprocess_acoustic_dataset
+from acoustic_no.data import AcousticDataset, ShuffledAcousticDataset, preprocess_acoustic_dataset
 
 # Configure logging
 logging.basicConfig(
@@ -37,10 +37,14 @@ def parse_args():
                       help="Directory to save/load the processed dataset")
     parser.add_argument("--preprocess", action="store_true", 
                       help="Preprocess the dataset before training")
+    parser.add_argument("--use-preprocess", action="store_true", 
+                      help="Preprocess the dataset before training")
     parser.add_argument("--num-chunks", type=int, default=16,
                       help="Number of chunks to use for preprocessing")
     parser.add_argument("--depth", type=int, default=8,
                       help="Depth of the sequence for each sample")
+    parser.add_argument("--dataset-size", type=int, default=-1,
+                        help="Size of the dataset to use for training")
     parser.add_argument("--num-epochs", type=int, default=32,
                       help="Number of epochs to train")
     parser.add_argument("--batch-size", type=int, default=64,
@@ -85,33 +89,61 @@ def main():
         )
     
     # Load the dataset
-    dataset = ShuffledAcousticDataset(
-        dataset_dir=args.processed_dir,
-    )
-    logger.info(f"Dataset size: {len(dataset)}")
+    if args.use_preprocess:
+        dataset = ShuffledAcousticDataset(
+            dataset_dir=args.processed_dir,
+        )
+    else:
+        dataset = AcousticDataset(
+            data_dir=args.data_dir,
+            depth=args.depth,
+        )
+    logger.info(f"Loaded dataset from {args.processed_dir} with {len(dataset)} samples")
+    logger.info(f"Dataset depth: {dataset.depth}")
     
     # Verify dataset depth
     depth = dataset.depth
     if depth != args.depth:
         raise ValueError(f"Expected dataset depth {args.depth}, but got {depth}.")
+
+    # Limit dataset size if specified
+    if args.dataset_size > 0 and args.dataset_size < len(dataset):
+        logger.info(f"Limiting dataset size to {args.dataset_size} samples")
+        indx = np.random.choice(
+            len(dataset), 
+            size=args.dataset_size, 
+            replace=False
+        )
+        dataset = Subset(dataset, indx)
+    else:
+        logger.info(f"Using full dataset size: {len(dataset)} samples")
+    logger.info(f"Dataset size: {len(dataset)}")
     
     # Split the dataset into training and validation sets
-    train_size = int(FRACTION_TRAIN * len(dataset))
-    train_dataset = Subset(dataset, range(train_size))
-    val_dataset = Subset(dataset, range(train_size, len(dataset)))
+    if not args.use_preprocess:
+        train_size = int(FRACTION_TRAIN * len(dataset))
+        train_dataset = Subset(dataset, range(train_size))
+        val_dataset = Subset(dataset, range(train_size, len(dataset)))
+    else:
+        train_dataset, val_dataset = random_split(
+            dataset,
+            [int(FRACTION_TRAIN * len(dataset)), len(dataset) - int(FRACTION_TRAIN * len(dataset))],
+            generator=torch.Generator().manual_seed(42)
+        )
+    logger.info(f"Training dataset size: {len(train_dataset)}, Validation dataset size: {len(val_dataset)}")
     
     # Create data loaders
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=False,
+        shuffle=not args.use_preprocess,  # Shuffle only if not using preprocessed data
         num_workers=args.num_workers,
     )
     val_loader = {
         "64x64": torch.utils.data.DataLoader(
             val_dataset,
             batch_size=args.batch_size,
-            shuffle=False,
+            shuffle=not args.use_preprocess,  # Shuffle only if not using preprocessed data
             num_workers=args.num_workers,
         )
     }

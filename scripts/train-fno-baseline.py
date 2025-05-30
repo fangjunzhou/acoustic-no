@@ -49,7 +49,7 @@ def parse_args():
                       help="Number of epochs to train")
     parser.add_argument("--batch-size", type=int, default=64,
                       help="Batch size for training")
-    parser.add_argument("--num-workers", type=int, default=10,
+    parser.add_argument("--num-workers", type=int, default=6,
                       help="Number of workers for data loading")
     parser.add_argument("--learning-rate", type=float, default=8e-3,
                       help="Learning rate for optimizer")

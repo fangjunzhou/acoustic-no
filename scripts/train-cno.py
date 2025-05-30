@@ -44,17 +44,17 @@ def parse_args():
                         help="Size of the dataset to use for training")
     parser.add_argument("--depth", type=int, default=8,
                          help="Depth of the sequence for each sample")
-    parser.add_argument("--num-epochs", type=int, default=30,
+    parser.add_argument("--num-epochs", type=int, default=32,
                          help="Number of epochs to train")
-    parser.add_argument("--batch-size", type=int, default=64,
+    parser.add_argument("--batch-size", type=int, default=32,
                          help="Batch size for training")
     parser.add_argument("--learning-rate", type=float, default=0.001,
                          help="Learning rate for optimizer")
-    parser.add_argument("--hidden-channels", type=int, nargs='+', default=[64, 64],
+    parser.add_argument("--hidden-channels", type=int, nargs='+', default=[128, 128, 256],
                          help="Number of hidden channels in each layer")
-    parser.add_argument("--layer-sizes", type=int, nargs='+', default=[2, 2],
+    parser.add_argument("--layer-sizes", type=int, nargs='+', default=[3, 3, 4],
                          help="Number of residual blocks in each layer")
-    parser.add_argument("--num-workers", type=int, default=10,
+    parser.add_argument("--num-workers", type=int, default=4,
                          help="Number of workers for data loading")
     parser.add_argument("--save-dir", type=pathlib.Path, default=pathlib.Path("resources/models/cno"),
                          help="Directory to save the trained model")

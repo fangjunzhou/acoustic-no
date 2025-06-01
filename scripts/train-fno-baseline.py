@@ -7,7 +7,7 @@ Training script for Fourier Neural Operator (FNO) model on acoustic wave propaga
 import pathlib
 import torch
 from torch.utils.data import Subset, random_split
-from neuralop.models import FNO
+from neuralop.models import FNO, TFNO
 from neuralop.training import AdamW
 from neuralop import LpLoss, H1Loss
 from neuralop.training.incremental import IncrementalFNOTrainer
@@ -63,6 +63,8 @@ def parse_args():
                       help="Number of layers in the FNO model")
     parser.add_argument("--save-dir", type=pathlib.Path, default=pathlib.Path("resources/models/fno_baseline"),
                       help="Directory to save the trained model")
+    parser.add_argument("--use-tfno", action="store_true",
+                      help="Use TFNO instead of FNO")
     return parser.parse_args()
 
 def main():
@@ -85,7 +87,8 @@ def main():
             data_dir=args.data_dir,
             output_dir=args.processed_dir,
             num_chunks=args.num_chunks,
-            depth=args.depth
+            depth=args.depth,
+            num_workers=args.num_workers
         )
     
     # Load the dataset
@@ -149,6 +152,8 @@ def main():
     }
     
     # Initialize the FNO model
+    factorization = "Tucker" if args.use_tfno else None
+    name = "TFNO" if args.use_tfno else "FNO"
     model = FNO(
         n_modes=tuple(args.n_modes),
         in_channels=depth * 3 + 1,
@@ -156,9 +161,10 @@ def main():
         n_layers=args.n_layers,
         hidden_channels=args.hidden_channels,
         projection_channel_ratio=2,
+        factorization=factorization,
     )
     model.to(device)
-    logger.info(f"Initialized FNO model with {sum(p.numel() for p in model.parameters())} parameters")
+    logger.info(f"Initialized {name} model with {sum(p.numel() for p in model.parameters())} parameters")
     
     # Initialize optimizer and scheduler
     optimizer = AdamW(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)

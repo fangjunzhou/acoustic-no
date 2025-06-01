@@ -16,3 +16,4 @@ notebooks/pressure_field.gif
 ckpt
 models
 .temp
+resources/small_dataset.zip

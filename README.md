@@ -2,7 +2,7 @@
 
 ## Setting up the repo
 
-Install package dependencies: 
+Install package dependencies:
 
 ```
 pip install uv
@@ -10,7 +10,10 @@ uv sync
 source .venv/bin/activate
 ```
 
+(for Git Bash on Windows, `python -m uv sync` followed by `source .venv\Scripts\activate` may work better)
+
 You should see something like this:
+
 ```
 [Taichi] version 1.7.3, llvm 15.0.7, commit 5ec301be, osx, python 3.12.2
 [Taichi] Starting on arch=metal
@@ -38,6 +41,7 @@ options:
 ```
 
 To generate the data:
+
 ```
 python scripts/generate_dataset.py --help
 ```

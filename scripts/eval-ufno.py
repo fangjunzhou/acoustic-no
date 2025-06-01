@@ -53,7 +53,11 @@ model = UFNO(
     width=64,
     n_layers=6,
 )
-model.load_state_dict(torch.load("ckpt/best_model_state_dict_64x64_h1.pt", map_location=device))
+# Load state dict and filter out metadata
+state_dict = torch.load("ckpt/best_model_state_dict_64x64_h1.pt", map_location=device, weights_only=False)
+if "_metadata" in state_dict:
+    del state_dict["_metadata"]
+model.load_state_dict(state_dict)
 model.to(device)
 model.eval()
 print("Model loaded successfully")
@@ -130,6 +134,11 @@ print(f"Average MSE Loss: {avg_mse_loss:.6f}")
 print(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}")
 print(f"Average Maximum Error: {avg_max_error:.6f}")
 
+# Create output directory for plots
+output_dir = pathlib.Path("outputs")
+output_dir.mkdir(exist_ok=True)
+print("Created output directory")
+
 # Save metrics to file
 metrics_file = output_dir / "evaluation_metrics.txt"
 with open(metrics_file, "w") as f:
@@ -142,10 +151,6 @@ with open(metrics_file, "w") as f:
     f.write(f"Average Maximum Error: {avg_max_error:.6f}\n")
 
 print("\n=== Generating Visualizations ===")
-# Create output directory for plots
-output_dir = pathlib.Path("outputs")
-output_dir.mkdir(exist_ok=True)
-print("Created output directory")
 
 print("\n1. Plotting initial conditions...")
 # Plot initial conditions

@@ -62,10 +62,14 @@ print("\nSetting up evaluation metrics...")
 # Setup loss functions
 l2loss = LpLoss(d=2, p=2)
 h1loss = H1Loss(d=2)
+mse_criterion = torch.nn.MSELoss()
 
 # Evaluation metrics
 total_l2_loss = 0.0
 total_h1_loss = 0.0
+total_mse_loss = 0.0
+total_rel_l2_error = 0.0
+total_max_error = 0.0
 num_samples = 0
 
 # Lists to store sample predictions for visualization
@@ -89,9 +93,20 @@ with torch.no_grad():
         # Calculate losses
         l2 = l2loss(pred, y)
         h1 = h1loss(pred, y)
+        mse = mse_criterion(pred, y)
         
+        # Calculate relative L2 error
+        rel_l2 = torch.norm(pred - y, p=2) / torch.norm(y, p=2)
+        
+        # Calculate maximum error
+        max_error = torch.max(torch.abs(pred - y))
+        
+        # Accumulate metrics
         total_l2_loss += l2.item() * x.size(0)
         total_h1_loss += h1.item() * x.size(0)
+        total_mse_loss += mse.item() * x.size(0)
+        total_rel_l2_error += rel_l2.item() * x.size(0)
+        total_max_error += max_error.item() * x.size(0)
         num_samples += x.size(0)
         
         # Store first batch for visualization
@@ -101,13 +116,30 @@ with torch.no_grad():
             sample_preds.append(pred[0].cpu().numpy())
             sample_targets.append(y[0].cpu().numpy())
 
-# Calculate average losses
+# Calculate average metrics
 avg_l2_loss = total_l2_loss / num_samples
 avg_h1_loss = total_h1_loss / num_samples
+avg_mse_loss = total_mse_loss / num_samples
+avg_rel_l2_error = total_rel_l2_error / num_samples
+avg_max_error = total_max_error / num_samples
 
 print("\n=== Evaluation Results ===")
 print(f"Average L2 Loss: {avg_l2_loss:.6f}")
 print(f"Average H1 Loss: {avg_h1_loss:.6f}")
+print(f"Average MSE Loss: {avg_mse_loss:.6f}")
+print(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}")
+print(f"Average Maximum Error: {avg_max_error:.6f}")
+
+# Save metrics to file
+metrics_file = output_dir / "evaluation_metrics.txt"
+with open(metrics_file, "w") as f:
+    f.write("=== U-FNO Evaluation Results ===\n")
+    f.write(f"Test Dataset Size: {len(dataset)}\n")
+    f.write(f"Average L2 Loss: {avg_l2_loss:.6f}\n")
+    f.write(f"Average H1 Loss: {avg_h1_loss:.6f}\n")
+    f.write(f"Average MSE Loss: {avg_mse_loss:.6f}\n")
+    f.write(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}\n")
+    f.write(f"Average Maximum Error: {avg_max_error:.6f}\n")
 
 print("\n=== Generating Visualizations ===")
 # Create output directory for plots
@@ -190,6 +222,17 @@ plt.savefig(output_dir / "error_distribution.png")
 plt.close()
 print("Error distribution plot saved")
 
+# Add relative error visualization
+print("\n5. Plotting relative error map...")
+fig, ax = plt.subplots(figsize=(10, 5))
+rel_error_map = np.abs(pred_data - target_data) / (np.abs(target_data) + 1e-8)
+im = ax.imshow(rel_error_map.mean(axis=0))
+plt.colorbar(im, ax=ax)
+ax.set_title("Mean Relative Error Map")
+plt.savefig(output_dir / "relative_error_map.png")
+plt.close()
+print("Relative error map saved")
+
 end_time = time.time()
 eval_duration = end_time - start_time
 hours = int(eval_duration // 3600)
@@ -198,4 +241,5 @@ seconds = int(eval_duration % 60)
 
 print("\n=== Evaluation Complete ===")
 print(f"Total evaluation time: {hours:02d}:{minutes:02d}:{seconds:02d}")
-print(f"All results saved in outputs/ directory") 
+print(f"All results saved in outputs/ directory")
+print(f"Detailed metrics saved in {metrics_file}") 

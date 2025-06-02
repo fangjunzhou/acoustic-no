@@ -1,0 +1,7 @@
+=== CNO Evaluation Results ===
+Test Dataset Size: 548
+Average L2 Loss: 20.449474
+Average H1 Loss: 21.902187
+Average MSE Loss: 1.979408
+Average Relative L2 Error: 0.336170
+Average Maximum Error: 40.932739

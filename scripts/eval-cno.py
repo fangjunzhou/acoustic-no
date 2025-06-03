@@ -171,6 +171,17 @@ plt.savefig(output_dir / "error_distribution.png")
 plt.close()
 print("Error distribution plot saved")
 
+print("\n5. Plotting relative error map...")
+# Add relative error visualization
+fig, ax = plt.subplots(figsize=(10, 5))
+rel_error_map = np.abs(pred_data - target_data) / (np.abs(target_data) + 1e-8)
+im = ax.imshow(rel_error_map.mean(axis=0))
+plt.colorbar(im, ax=ax)
+ax.set_title("Mean Relative Error Map")
+plt.savefig(output_dir / "relative_error_map.png")
+plt.close()
+print("Relative error map saved")
+
 # Evaluate the model on the test dataset
 model.eval()
 # Setup loss functions

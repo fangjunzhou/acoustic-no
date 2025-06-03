@@ -38,7 +38,7 @@ print("\nCreating data loader...")
 # Create data loader
 test_loader = torch.utils.data.DataLoader(
     dataset,
-    batch_size=16,
+    batch_size=1,
     shuffle=False,
     num_workers=0,
 )
@@ -135,8 +135,8 @@ print(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}")
 print(f"Average Maximum Error: {avg_max_error:.6f}")
 
 # Create output directory for plots
-output_dir = pathlib.Path("outputs")
-output_dir.mkdir(exist_ok=True)
+output_dir = pathlib.Path("outputs/ufno")
+output_dir.mkdir(parents=True, exist_ok=True)
 print("Created output directory")
 
 # Save metrics to file
@@ -172,7 +172,23 @@ plt.savefig(output_dir / "initial_conditions.png")
 plt.close()
 print("Initial conditions plot saved")
 
-print("\n2. Creating prediction animation...")
+print("\n2. Plotting inference results...")
+# Plot inference results (prediction vs ground truth)
+fig, ax = plt.subplots(1, 3, figsize=(12, 6))
+ax[0].imshow(sample_preds[0][-1], cmap="viridis", vmin=-10, vmax=10)
+ax[0].set_title("Predicted Pressure")
+ax[1].imshow(sample_targets[0][-1], cmap="viridis", vmin=-10, vmax=10)
+ax[1].set_title("Ground Truth Pressure")
+ax[2].imshow(
+    sample_preds[0][-1] - sample_targets[0][-1], cmap="viridis", vmin=-10, vmax=10
+)
+ax[2].set_title("Difference")
+plt.tight_layout()
+plt.savefig(output_dir / "inference_results.png")
+plt.close()
+print("Inference results plot saved")
+
+print("\n3. Creating prediction animation...")
 # Create animation of predictions vs ground truth
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle("Pressure Field Evolution")
@@ -202,7 +218,7 @@ anim.save(output_dir / "pressure_evolution.gif", writer=writer)
 plt.close()
 print("Animation saved")
 
-print("\n3. Plotting error evolution...")
+print("\n4. Plotting error evolution...")
 # Plot error evolution
 error_evolution = np.abs(pred_data - target_data).mean(axis=(1, 2))
 plt.figure(figsize=(10, 5))
@@ -216,7 +232,7 @@ plt.savefig(output_dir / "error_evolution.png")
 plt.close()
 print("Error evolution plot saved")
 
-print("\n4. Plotting error distribution...")
+print("\n5. Plotting error distribution...")
 # Plot error distribution
 plt.figure(figsize=(10, 5))
 sns.histplot(error_evolution, bins=30, kde=True)
@@ -228,7 +244,7 @@ plt.close()
 print("Error distribution plot saved")
 
 # Add relative error visualization
-print("\n5. Plotting relative error map...")
+print("\n6. Plotting relative error map...")
 fig, ax = plt.subplots(figsize=(10, 5))
 rel_error_map = np.abs(pred_data - target_data) / (np.abs(target_data) + 1e-8)
 im = ax.imshow(rel_error_map.mean(axis=0))
@@ -246,5 +262,5 @@ seconds = int(eval_duration % 60)
 
 print("\n=== Evaluation Complete ===")
 print(f"Total evaluation time: {hours:02d}:{minutes:02d}:{seconds:02d}")
-print(f"All results saved in outputs/ directory")
+print(f"All results saved in outputs/ufno directory")
 print(f"Detailed metrics saved in {metrics_file}") 

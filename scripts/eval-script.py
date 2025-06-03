@@ -74,4 +74,6 @@ cno.load_state_dict(
 cno.to(device)
 
 # Warning: It will probably take >30 minutes to generate a full animation
-eval_utils.sample_iterative(cno, dataset, device, kind="animation", name="CNO", path="outputs/cno_iterative.gif")
+eval_utils.sample_iterative(cno, dataset, device, 
+                            kind="animation", name="CNO", index=1000,
+                            path="outputs/cno_iterative.gif")

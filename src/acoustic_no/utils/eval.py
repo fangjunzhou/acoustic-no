@@ -29,6 +29,7 @@ def evaluate_models(models, dataset, device=None, print_results=True):
         model.to(device)
         model.eval()
 
+    # Initialize results dictionary
     results = {
         name: {
             "mse": 0.0,
@@ -39,18 +40,21 @@ def evaluate_models(models, dataset, device=None, print_results=True):
         }
         for name in models.keys()
     }
-
+    
+    # Initialize loss functions
     N = len(dataset)
     mse = torch.nn.MSELoss()
     l2 = LpLoss(d=2, p=2)
     h1 = H1Loss(d=2)
     
     with torch.no_grad():
+        # Iterate over the dataset
         for i in tqdm(range(N), desc="Evaluating", unit="sample"):
             data = dataset[i]
             x = data["x"].unsqueeze(0).to(device)
             y_true = data["y"].unsqueeze(0).to(device)
 
+            # Compute predictions and metrics for each model
             for name, model in models.items():
                 y_pred = model(x)
                 rel_l2 = torch.norm(y_pred - y_true, p=2) / torch.norm(y_true, p=2)
@@ -62,6 +66,7 @@ def evaluate_models(models, dataset, device=None, print_results=True):
                 results[name]["rel_l2"] += rel_l2.item()
                 results[name]["max_error"] += max_error.item()
         
+        # Average the results
         for name in results.keys():
             results[name]["mse"] /= N
             results[name]["l2_loss"] /= N
@@ -69,6 +74,7 @@ def evaluate_models(models, dataset, device=None, print_results=True):
             results[name]["rel_l2"] /= N
             results[name]["max_error"] /= N
     
+    # Print the results if required
     if print_results:
         for name, metrics in results.items():
             print("-" * 40)
@@ -83,6 +89,14 @@ def evaluate_models(models, dataset, device=None, print_results=True):
 
 
 def plot_initial_conditions(dataset, index=None, path=None):
+    """
+    Plot the initial conditions from the dataset.
+
+    Parameters:
+    - dataset (AcousticDataset): The dataset containing the initial conditions.
+    - index (int, optional): The index of the sample to plot. If None, the middle sample is used.
+    - path (str, optional): Path to save the plot. If None, the plot is displayed.
+    """
     
     # Display a sample from the dataset
     if index is None:
@@ -119,12 +133,25 @@ def plot_initial_conditions(dataset, index=None, path=None):
 
 def plot_inference_results_direct(pred_data, target_data,
                                   path=None, kind="pressure", name=None):
+    """
+    Plot inference results directly from prediction and target data.
+    Used as a helper function for other plotting functions.
+
+    Parameters:
+    - pred_data (torch.Tensor): The predicted data from the model.
+    - target_data (torch.Tensor): The ground truth data.
+    - path (str, optional): Path to save the plot. If None, the plot is displayed.
+    - kind (str): Type of plot to create. Options are "pressure", "animation", or "error".
+    - name (str, optional): Name to include in the plot title.
+    """
     
-    name = "" if name is None else f" ({name.upper()})"
+    name = "" if name is None else f" ({name})"
     pred_data = pred_data.cpu().numpy()
     target_data = target_data.cpu().numpy()
-    # Plot the results
+
     if kind == "pressure":
+
+        # Plot the last time step of pressure predictions vs ground truth
         fig, ax = plt.subplots(1, 3, figsize=(12, 6))
         ax[0].imshow(pred_data[-1], cmap="viridis", vmin=-10, vmax=10)
         ax[0].set_title("Predicted Pressure")
@@ -168,7 +195,7 @@ def plot_inference_results_direct(pred_data, target_data,
 
         depth = pred_data.shape[0]
         anim = FuncAnimation(fig, update, frames=depth, interval=50, blit=True)
-        writer = PillowWriter(fps=10)
+        writer = PillowWriter(fps=60)
 
         if path is None:
             path = "pressure_evolution.gif"
@@ -207,11 +234,21 @@ def plot_inference_results_direct(pred_data, target_data,
     else:
         raise ValueError(f"Unknown kind: {kind}. Choose from 'pressure', 'animation', or 'error'.")
     
-
-# `kind` can be "pressure", "animation", or "error"
 def plot_inference_results(model, dataset, 
                            index=None, device=None, path=None,
                            kind="pressure", name=None):
+    """
+    Plot inference results from a model on a dataset.
+
+    Parameters:
+    - model (torch.nn.Module): The model to evaluate.
+    - dataset (AcousticDataset): The dataset to evaluate the model on.
+    - index (int, optional): The index of the sample to plot. If None, the middle sample is used.
+    - device (torch.device, optional): The device to run the model on. If None, uses CUDA if available.
+    - path (str, optional): Path to save the plot. If None, the plot is displayed.
+    - kind (str): Type of plot to create. Options are "pressure", "animation", or "error".
+    - name (str, optional): Name to include in the plot title.
+    """
     
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -221,19 +258,18 @@ def plot_inference_results(model, dataset,
     data = dataset[index]
     model.to(device)
 
-    # Inference
     model.eval()
     x = data["x"]
     p = data["y"]
-    name = "" if name is None else f" ({name.upper()})"
-    print(f"\nRunning inference on model{name}...")
 
+    # Obtain prediction from the model
     with torch.no_grad():
         pred = model(x.unsqueeze(0).to(device))
 
     pred_data = pred[0]
     target_data = p
 
+    # Plot inference results
     plot_inference_results_direct(
         pred_data, target_data, path=path, kind=kind, name=name
     )
@@ -243,27 +279,61 @@ def sample_iterative(
     kind="pressure", name=None, compute_metrics=False,
     index=None  # Optional index to plot
 ):
+    """
+    Sample the model iteratively on the dataset and plot the results.
+    In each iteration, the last predicted pressure field is used as the
+    initial condition for the next sample.
+
+    Parameters:
+    - model (torch.nn.Module): The model to evaluate.
+    - dataset (AcousticDataset): The dataset to evaluate the model on.
+    - device (torch.device, optional): The device to run the model on. If None, uses CUDA if available.
+    - path (str, optional): Path to save the plot. If None, the plot is displayed.
+    - kind (str): Type of plot to create. Options are "pressure", "animation", or "error".
+    - name (str, optional): Name to include in the plot title.
+    - compute_metrics (bool): Whether to compute and print evaluation metrics.
+    - index (int, optional): Functionality differs based on `kind`:
+        - "pressure": Index of the sample to plot.
+        - "error": Index of the sample to plot.
+        - "animation": Up to the specified index for animation.
+    """
+
     model.to(device)
     model.eval()
 
+    # Initialize lists to store true and predicted values
     y_true = []
     y_pred = []
     i = 0
-    init_cond = dataset[0]["x"][0, :, :].detach().cpu()
 
+    # Initialize the initial condition from the first sample
+    init_cond = dataset[0]["x"][0, :, :].detach().cpu()
+    
+    # Iterate through the dataset, sampling iteratively
     while i < len(dataset):
+
+        # Get features and target from the dataset
         data = dataset[i]
         x = data["x"].detach().clone()
         p = data["y"]
+
+        # Ensure the initial condition is used for the first sample
         x[0, :, :] = init_cond
+
+        # Predict the next pressure field using the model
         with torch.no_grad():
             pred = model(x.unsqueeze(0).to(device)).squeeze()
+
+        # Set the last predicted pressure field as the new initial condition
         init_cond = pred[-1, :, :].detach().cpu()
 
+        # Append the true and predicted values to the lists
         y_true.append(p[:-1].cpu())
         y_pred.append(pred[:-1].cpu())
 
-        i += dataset.depth - 1  # Skip to the next initial condition
+        i += dataset.depth - 1  # Skip to the next sample
+
+    # Stack the true and predicted values
     y_true = torch.stack(y_true).flatten(0, 1)[:len(dataset)]
     y_pred = torch.stack(y_pred).flatten(0, 1)[:len(dataset)]
 
@@ -273,7 +343,10 @@ def sample_iterative(
 
         # Evaluate the model on the test dataset
         model.eval()
+
         # Setup loss functions
+        # NOTE: L2 and H1 losses are computed per-sample here so they are
+        # the actual relative errors (not over a batch)
         l2loss = LpLoss(d=2, p=2)
         h1loss = H1Loss(d=2)
         mse_criterion = torch.nn.MSELoss()
@@ -318,13 +391,27 @@ def sample_iterative(
         print(f"  Max Error: {avg_max_error:.6f}")
     
     if kind == "pressure":
+
+        # Filter to the specified index if provided
         if index is None:
             index = len(dataset) // 2
         y_pred = y_pred[index:index + dataset.depth]
         y_true = y_true[index:index + dataset.depth]
+
     elif kind == "error" and index is not None:
+
+        # Filter to the specified index if provided
         y_pred = y_pred[index:index + dataset.depth]
         y_true = y_true[index:index + dataset.depth]
+    
+    elif kind == "animation":
+
+        # Generate animation for `index` steps after middle of dataset
+        if index is None:
+            index = dataset.depth
+        y_pred = y_pred[len(dataset) // 2:len(dataset) // 2 + index]
+        y_true = y_true[len(dataset) // 2:len(dataset) // 2 + index]
+
 
     plot_inference_results_direct(
         y_pred, y_true, path=path, kind=kind, name=name

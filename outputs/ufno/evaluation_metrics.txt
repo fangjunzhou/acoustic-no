@@ -1,7 +1,7 @@
 === U-FNO Evaluation Results ===
 Test Dataset Size: 8757
-Average L2 Loss: 24.774568
+Average L2 Loss: 24.774569
 Average H1 Loss: 25.143501
 Average MSE Loss: 2.985441
 Average Relative L2 Error: 0.410845
-Average Maximum Error: 49.394824
+Average Maximum Error: 49.394780

@@ -153,6 +153,7 @@ def main():
     
     # Initialize the FNO model
     factorization = "Tucker" if args.use_tfno else None
+    rank = 16 if args.use_tfno else None
     name = "TFNO" if args.use_tfno else "FNO"
     model = FNO(
         n_modes=tuple(args.n_modes),
@@ -162,6 +163,7 @@ def main():
         hidden_channels=args.hidden_channels,
         projection_channel_ratio=2,
         factorization=factorization,
+        rank=rank
     )
     model.to(device)
     logger.info(f"Initialized {name} model with {sum(p.numel() for p in model.parameters())} parameters")

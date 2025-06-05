@@ -6,6 +6,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 import seaborn as sns
 import numpy as np
 from tqdm import tqdm
+from time import time
 
 def evaluate_models(models, dataset, device=None, print_results=True):
     """
@@ -132,7 +133,8 @@ def plot_initial_conditions(dataset, index=None, path=None):
         plt.show()
 
 def plot_inference_results_direct(pred_data, target_data,
-                                  path=None, kind="pressure", name=None):
+                                  path=None, kind="pressure", name=None,
+                                  show_plot=True):
     """
     Plot inference results directly from prediction and target data.
     Used as a helper function for other plotting functions.
@@ -208,35 +210,37 @@ def plot_inference_results_direct(pred_data, target_data,
         error_evolution = np.abs(pred_data - target_data).mean(axis=(1, 2))
 
         # Plot error evolution and distribution
-        fig, ax = plt.subplots(ncols=2, figsize=(12, 5))
-        
-        print("Plotting error evolution...")
-        ax[0].plot(error_evolution, 'b-', label='Mean Absolute Error')
-        ax[0].set_xlabel('Time Step')
-        ax[0].set_ylabel('Error')
-        ax[0].set_title('Error Evolution Over Time' + name)
-        ax[0].legend()
-        ax[0].grid(True)
+        if show_plot:
+            fig, ax = plt.subplots(ncols=2, figsize=(12, 5))
+            
+            print("Plotting error evolution...")
+            ax[0].plot(error_evolution, 'b-', label='Mean Absolute Error')
+            ax[0].set_xlabel('Time Step')
+            ax[0].set_ylabel('Error')
+            ax[0].set_title('Error Evolution Over Time' + name)
+            ax[0].legend()
+            ax[0].grid(True)
 
-        print("Plotting error distribution...")
-        sns.histplot(error_evolution, bins=30, kde=True, ax=ax[1])
-        ax[1].set_xlabel('Error Magnitude')
-        ax[1].set_ylabel('Count')
-        ax[1].set_title('Distribution of Prediction Errors' + name)
+            print("Plotting error distribution...")
+            sns.histplot(error_evolution, bins=30, kde=True, ax=ax[1])
+            ax[1].set_xlabel('Error Magnitude')
+            ax[1].set_ylabel('Count')
+            ax[1].set_title('Distribution of Prediction Errors' + name)
 
-        plt.tight_layout()
-        if path is not None:
-            plt.savefig(path)
-        else:
-            plt.show()
-        plt.close()
-        print("Error plots saved.")
+            plt.tight_layout()
+            if path is not None:
+                plt.savefig(path)
+            else:
+                plt.show()
+            plt.close()
+            print("Error plots saved.")
+        return error_evolution
     else:
         raise ValueError(f"Unknown kind: {kind}. Choose from 'pressure', 'animation', or 'error'.")
     
 def plot_inference_results(model, dataset, 
                            index=None, device=None, path=None,
-                           kind="pressure", name=None):
+                           kind="pressure", name=None, show_plot=True):
     """
     Plot inference results from a model on a dataset.
 
@@ -270,8 +274,8 @@ def plot_inference_results(model, dataset,
     target_data = p
 
     # Plot inference results
-    plot_inference_results_direct(
-        pred_data, target_data, path=path, kind=kind, name=name
+    return plot_inference_results_direct(
+        pred_data, target_data, path=path, kind=kind, name=name, show_plot=show_plot
     )
 
 def sample_iterative(
@@ -413,6 +417,6 @@ def sample_iterative(
         y_true = y_true[len(dataset) // 2:len(dataset) // 2 + index]
 
 
-    plot_inference_results_direct(
+    return plot_inference_results_direct(
         y_pred, y_true, path=path, kind=kind, name=name
     )

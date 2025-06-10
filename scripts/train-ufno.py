@@ -61,16 +61,16 @@ print("\nCreating data loaders...")
 # Create data loaders
 train_loader = torch.utils.data.DataLoader(
     train_dataset,
-    batch_size=16,
+    batch_size=1,
     shuffle=True,
     num_workers=0,
 )
 val_loader = torch.utils.data.DataLoader(
-    val_dataset,
-    batch_size=16,
-    shuffle=False,
-    num_workers=0,
-)
+        val_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=0,
+    )
 print("Data loaders created")
 
 print("\nInitializing model...")

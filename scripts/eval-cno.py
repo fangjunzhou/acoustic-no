@@ -57,7 +57,7 @@ logger.info(f"Using device: {device}")
 # Load the dataset
 dataset = AcousticDataset(data_dir=pathlib.Path(args.dataset_path), depth=64)
 depth = dataset.depth
-dataset = Subset(dataset, range(0, len(dataset), 1))  # Subsample for faster evaluation
+dataset = Subset(dataset, range(0, len(dataset), 32))  # Subsample for faster evaluation
 logger.info(f"Dataset loaded with {len(dataset)} samples.")
 
 # Load the CNO model
@@ -118,7 +118,7 @@ print("Creating prediction animation...")
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle("Pressure Field Evolution")
 
-pred_data = pred[0]
+pred_data = pred[-1]
 target_data = p
 
 vmin = min(pred_data.min(), target_data.min())
@@ -145,31 +145,16 @@ anim.save(output_dir / "pressure_evolution.gif", writer=writer)
 plt.close()
 print("Animation saved")
 
-error_evolution = np.abs(pred_data - target_data).mean(axis=(1, 2))
-
-print("Plotting error evolution...")
-# Plot error evolution
-plt.figure(figsize=(10, 5))
-plt.plot(error_evolution, "b-", label="Mean Absolute Error")
-plt.xlabel("Time Step")
-plt.ylabel("Error")
-plt.title("Error Evolution Over Time")
-plt.legend()
-plt.grid(True)
-plt.savefig(output_dir / "error_evolution.png")
+print("5. Plotting relative error map...")
+# Add relative error visualization
+fig, ax = plt.subplots(figsize=(10, 5))
+rel_error_map = np.abs(pred_data - target_data) / (np.abs(target_data) + 1e-8)
+im = ax.imshow(rel_error_map.mean(axis=0))
+plt.colorbar(im, ax=ax)
+ax.set_title("Mean Relative Error Map")
+plt.savefig(output_dir / "relative_error_map.png")
 plt.close()
-print("Error evolution plot saved")
-
-print("Plotting error distribution...")
-# Plot error distribution
-plt.figure(figsize=(10, 5))
-sns.histplot(error_evolution, bins=30, kde=True)
-plt.xlabel("Error Magnitude")
-plt.ylabel("Count")
-plt.title("Distribution of Prediction Errors")
-plt.savefig(output_dir / "error_distribution.png")
-plt.close()
-print("Error distribution plot saved")
+print("Relative error map saved")
 
 # Evaluate the model on the test dataset
 model.eval()
@@ -185,6 +170,9 @@ total_mse_loss = 0.0
 total_rel_l2_error = 0.0
 total_max_error = 0.0
 num_samples = 0
+
+
+error_evolution = np.zeros(64)
 
 with torch.no_grad():
     for i in tqdm(range(len(dataset)), desc="Evaluating", unit="sample"):
@@ -211,6 +199,35 @@ with torch.no_grad():
         total_rel_l2_error += rel_l2.item() * x.size(0)
         total_max_error += max_error.item() * x.size(0)
         num_samples += 1
+        # Store error evolution
+        error_evolution += torch.abs(pred - y).mean(dim=(1, 2)).cpu().numpy()[0]
+
+# Normalize error evolution
+error_evolution /= num_samples
+
+print("Plotting error evolution...")
+# Plot error evolution
+plt.figure(figsize=(10, 5))
+plt.plot(error_evolution, "b-", label="Mean Absolute Error")
+plt.xlabel("Time Step")
+plt.ylabel("Error")
+plt.title("CNO Error Evolution Over Time")
+plt.legend()
+plt.grid(True)
+plt.savefig(output_dir / "error_evolution.png")
+plt.close()
+print("Error evolution plot saved")
+
+print("Plotting error distribution...")
+# Plot error distribution
+plt.figure(figsize=(10, 5))
+sns.histplot(error_evolution, bins=30, kde=True)
+plt.xlabel("Error Magnitude")
+plt.ylabel("Count")
+plt.title("Distribution of Prediction Errors")
+plt.savefig(output_dir / "error_distribution.png")
+plt.close()
+print("Error distribution plot saved")
 
 # Calculate average metrics
 avg_l2_loss = total_l2_loss / num_samples

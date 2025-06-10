@@ -38,7 +38,7 @@ print("\nCreating data loader...")
 # Create data loader
 test_loader = torch.utils.data.DataLoader(
     dataset,
-    batch_size=16,
+    batch_size=1,
     shuffle=False,
     num_workers=0,
 )
@@ -112,13 +112,6 @@ with torch.no_grad():
         total_rel_l2_error += rel_l2.item() * x.size(0)
         total_max_error += max_error.item() * x.size(0)
         num_samples += x.size(0)
-        
-        # Store first batch for visualization
-        if len(sample_inputs) == 0:
-            print(f"\nStoring sample batch {batch_idx} for visualization...")
-            sample_inputs.append(x[0].cpu().numpy())
-            sample_preds.append(pred[0].cpu().numpy())
-            sample_targets.append(y[0].cpu().numpy())
 
 # Calculate average metrics
 avg_l2_loss = total_l2_loss / num_samples
@@ -126,6 +119,24 @@ avg_h1_loss = total_h1_loss / num_samples
 avg_mse_loss = total_mse_loss / num_samples
 avg_rel_l2_error = total_rel_l2_error / num_samples
 avg_max_error = total_max_error / num_samples
+
+# New: Prepare sample for visualization (inserted before Evaluation Results printout)
+print("\nPreparing sample for visualization...")
+# Select a sample from the middle of the dataset for visualization
+viz_idx = len(dataset) // 2
+viz_sample_data = dataset[viz_idx]
+
+x_viz = viz_sample_data["x"].unsqueeze(0).to(device)
+y_viz = viz_sample_data["y"].unsqueeze(0).to(device) # Ground truth for visualization
+
+# Run model on the visualization sample
+with torch.no_grad():
+    pred_viz = model(x_viz)
+
+sample_inputs.append(x_viz[0].cpu().numpy())
+sample_preds.append(pred_viz[0].cpu().numpy())
+sample_targets.append(y_viz[0].cpu().numpy())
+print(f"Using sample index {viz_idx} for visualizations.")
 
 print("\n=== Evaluation Results ===")
 print(f"Average L2 Loss: {avg_l2_loss:.6f}")
@@ -135,8 +146,8 @@ print(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}")
 print(f"Average Maximum Error: {avg_max_error:.6f}")
 
 # Create output directory for plots
-output_dir = pathlib.Path("outputs")
-output_dir.mkdir(exist_ok=True)
+output_dir = pathlib.Path("outputs/ufno")
+output_dir.mkdir(parents=True, exist_ok=True)
 print("Created output directory")
 
 # Save metrics to file
@@ -150,29 +161,69 @@ with open(metrics_file, "w") as f:
     f.write(f"Average Relative L2 Error: {avg_rel_l2_error:.6f}\n")
     f.write(f"Average Maximum Error: {avg_max_error:.6f}\n")
 
-print("\n=== Generating Visualizations ===")
-
 print("\n1. Plotting initial conditions...")
 # Plot initial conditions
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-im0 = axes[0].imshow(sample_inputs[0][0])  # Initial pressure
+fig.suptitle("Initial Conditions (t=0)")
+
+sample_data = sample_inputs[0]  # Shape: (3*DEPTH+1, H, W)
+
+# 1. Initial Pressure (t=0)
+initial_pressure_t0 = sample_data[0]
+im0 = axes[0].imshow(initial_pressure_t0, interpolation="nearest")
 plt.colorbar(im0, ax=axes[0])
 axes[0].set_title("Initial Pressure")
 
-im1 = axes[1].imshow(sample_inputs[0][1:3].mean(axis=0))  # Average velocity
+# 2. Initial Velocity (t=0)
+# vx0_t0 is at channel DEPTH
+# vy0_t0 is at channel DEPTH + 1
+vx_t0 = sample_data[DEPTH]
+vy_t0 = sample_data[DEPTH + 1]
+
+# Stack to (H, W, 2)
+vel_t0_hw2 = np.stack((vx_t0, vy_t0), axis=-1)
+# Add dummy channel for RGB like viz (H, W, 3)
+vel_t0_hw3 = np.concatenate((vel_t0_hw2, np.zeros_like(vel_t0_hw2[..., :1])), axis=-1)
+
+# Normalize for visualization
+if (vel_t0_hw3.max() - vel_t0_hw3.min()) > 1e-6:  # Avoid division by zero
+    vel_t0_hw3_normalized = (vel_t0_hw3 - vel_t0_hw3.min()) / (vel_t0_hw3.max() - vel_t0_hw3.min())
+else:
+    vel_t0_hw3_normalized = vel_t0_hw3
+
+im1 = axes[1].imshow(vel_t0_hw3_normalized, interpolation="nearest")
 plt.colorbar(im1, ax=axes[1])
-axes[1].set_title("Initial Velocity (avg)")
+axes[1].set_title("Initial Velocity (RG: xy, B: 0)")
 
-im2 = axes[2].imshow(sample_inputs[0][3:].mean(axis=0))  # Alpha field
+# 3. Alpha Field
+# Alpha is the last channel: index 3*DEPTH
+initial_alpha = sample_data[3 * DEPTH]
+im2 = axes[2].imshow(initial_alpha, interpolation="nearest")
 plt.colorbar(im2, ax=axes[2])
-axes[2].set_title("Alpha Field (avg)")
+axes[2].set_title("Alpha Field")
 
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
 plt.savefig(output_dir / "initial_conditions.png")
 plt.close()
 print("Initial conditions plot saved")
 
-print("\n2. Creating prediction animation...")
+print("\n2. Plotting inference results...")
+# Plot inference results (prediction vs ground truth)
+fig, ax = plt.subplots(1, 3, figsize=(12, 6))
+ax[0].imshow(sample_preds[0][-1], cmap="viridis", vmin=-10, vmax=10) # Ensure fixed vmin/vmax
+ax[0].set_title("Predicted Pressure")
+ax[1].imshow(sample_targets[0][-1], cmap="viridis", vmin=-10, vmax=10) # Ensure fixed vmin/vmax
+ax[1].set_title("Ground Truth Pressure")
+ax[2].imshow(
+    sample_preds[0][-1] - sample_targets[0][-1], cmap="viridis", vmin=-10, vmax=10 # Ensure fixed vmin/vmax
+)
+ax[2].set_title("Difference")
+plt.tight_layout()
+plt.savefig(output_dir / "inference_results.png")
+plt.close()
+print("Inference results plot saved")
+
+print("\n3. Creating prediction animation...")
 # Create animation of predictions vs ground truth
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 fig.suptitle("Pressure Field Evolution")
@@ -202,7 +253,7 @@ anim.save(output_dir / "pressure_evolution.gif", writer=writer)
 plt.close()
 print("Animation saved")
 
-print("\n3. Plotting error evolution...")
+print("\n4. Plotting error evolution...")
 # Plot error evolution
 error_evolution = np.abs(pred_data - target_data).mean(axis=(1, 2))
 plt.figure(figsize=(10, 5))
@@ -216,7 +267,7 @@ plt.savefig(output_dir / "error_evolution.png")
 plt.close()
 print("Error evolution plot saved")
 
-print("\n4. Plotting error distribution...")
+print("\n5. Plotting error distribution...")
 # Plot error distribution
 plt.figure(figsize=(10, 5))
 sns.histplot(error_evolution, bins=30, kde=True)
@@ -228,7 +279,7 @@ plt.close()
 print("Error distribution plot saved")
 
 # Add relative error visualization
-print("\n5. Plotting relative error map...")
+print("\n6. Plotting relative error map...")
 fig, ax = plt.subplots(figsize=(10, 5))
 rel_error_map = np.abs(pred_data - target_data) / (np.abs(target_data) + 1e-8)
 im = ax.imshow(rel_error_map.mean(axis=0))
@@ -246,5 +297,5 @@ seconds = int(eval_duration % 60)
 
 print("\n=== Evaluation Complete ===")
 print(f"Total evaluation time: {hours:02d}:{minutes:02d}:{seconds:02d}")
-print(f"All results saved in outputs/ directory")
+print(f"All results saved in outputs/ufno directory")
 print(f"Detailed metrics saved in {metrics_file}") 
